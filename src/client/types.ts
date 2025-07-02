@@ -1,4 +1,4 @@
-export type QueryClientOptions = {
+export type QueryClientConfig = {
    baseURL?: string;
    withCredentials?: boolean;
 };

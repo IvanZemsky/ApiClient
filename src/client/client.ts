@@ -1,6 +1,6 @@
 import { QueryInterceptors } from "./interceptors";
 import type {
-   QueryClientOptions,
+   QueryClientConfig,
    WithoutBody,
    QueryRequestFnOptions,
    QueryRequestInit,
@@ -9,18 +9,18 @@ import type {
 } from "./types";
 
 export class QueryClient {
-   private config: QueryClientOptions;
+   private config: QueryClientConfig;
 
    public interceptors = {
       request: new QueryInterceptors<QueryRequestInit>(),
       response: new QueryInterceptors<Response>(),
    };
 
-   constructor(options: QueryClientOptions) {
+   constructor(config: QueryClientConfig) {
       this.config = {
-         ...options,
-         baseURL: this.formatBaseURL(options.baseURL),
-         withCredentials: options.withCredentials,
+         ...config,
+         baseURL: this.formatBaseURL(config.baseURL),
+         withCredentials: config.withCredentials,
       };
    }
 
