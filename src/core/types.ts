@@ -1,6 +1,8 @@
 export type QueryClientConfig = {
    baseURL?: string;
    withCredentials?: boolean;
+   headers?: HeadersInit;
+   timeout?: number;
 };
 
 export type QueryRequestInit = Omit<RequestInit, "body"> & {

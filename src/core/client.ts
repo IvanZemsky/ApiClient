@@ -20,7 +20,6 @@ export class QueryClient {
       this.config = {
          ...config,
          baseURL: this.formatBaseURL(config.baseURL),
-         withCredentials: config.withCredentials,
       };
    }
 
@@ -81,13 +80,7 @@ export class QueryClient {
       const { input, ...options } = initOptions;
 
       const url = this.getInputString(input, options.query);
-      const body = options.body ? JSON.stringify(options.body) : undefined;
-
-      const preparedOptions: RequestInit = {
-         ...options,
-         body,
-         credentials: this.config.withCredentials ? "include" : "same-origin",
-      };
+      const preparedOptions: RequestInit = this.prepareOptions(initOptions);
 
       const response = await fetch(url, preparedOptions);
       await this.interceptors.response.run(response);
@@ -95,9 +88,30 @@ export class QueryClient {
       return response.json();
    }
 
+   private prepareOptions(options: QueryRequestInit): RequestInit {
+      const headers = this.defineQueryHeaders(options.headers);
+      const body = options.body ? JSON.stringify(options.body) : undefined;
+
+      return {
+         ...this.config,
+         ...options,
+         credentials: this.config.withCredentials ? "include" : "same-origin",
+         headers,
+         body,
+      };
+   }
+
+   private defineQueryHeaders(
+      queryHeaders: HeadersInit | undefined
+   ): HeadersInit {
+      return {
+         ...this.config.headers,
+         ...queryHeaders,
+      };
+   }
+
    private getInputString(input: RequestInfo, query?: QueryParam): string {
       const searchParams = new URLSearchParams(query);
-
       return `${this.config.baseURL}${input}?${searchParams}`;
    }
 

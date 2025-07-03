@@ -17,12 +17,12 @@ export default defineConfig({
    build: {
       lib: {
          entry: resolve(__dirname, "src/index.ts"),
-         name: "curry",
+         name: "curry-query",
          fileName: (format) => `curry-query-client.${format}.js`,
       },
       rollupOptions: {
          input: {
-            main: resolve(__dirname, "src/main.ts"),
+            main: resolve(__dirname, "src/index.ts"),
          },
       },
    },

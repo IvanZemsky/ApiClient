@@ -1,18 +1,21 @@
 // TEST
 
-import { QueryClient } from "../client/client";
+import { QueryClient } from "../core/client";
 
 const client = new QueryClient({
    baseURL: "https://jsonplaceholder.typicode.com",
+   headers: {
+      "Test-Header": "TEST_VALUE_A"
+   }
 });
 
-client.interceptors.response.add(async (response) => {
+client.interceptors.response.use(async (response) => {
    if (response.status === 200) {
       console.log("SUCCESS");
    }
 });
 
-client.interceptors.request.add(async (request) => {
+client.interceptors.request.use(async (request) => {
    request.headers = { ...request.headers, Authorization: "Bearer token TEST" };
 });
 
@@ -25,7 +28,9 @@ async function fetchTodo(todoId: number) {
 await fetchTodo(1);
 
 async function fakePost() {
-   return await client.post(`todos`, {body: {title: "test"}});
+   return await client.post(`todos`, {body: {title: "test"}, headers: {
+      "Test-Header": "TEST_VALUE_B"
+   }});
 }
 
 await fakePost();

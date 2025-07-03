@@ -1,7 +1,7 @@
 export class QueryInterceptors<T> {
    private interceptors: Interceptor<T>[] = [];
 
-   add(interceptor: (param: T) => Promise<void>) {
+   use(interceptor: (param: T) => Promise<void>) {
       this.interceptors.push(interceptor);
    }
 

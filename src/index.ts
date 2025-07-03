@@ -4,6 +4,6 @@ export type {
    QueryRequestFnOptions,
    QueryHTTPMethod,
    QueryParam,
-} from "@/client/types";
+} from "@/core/types";
 
-export { QueryClient } from "@/client/client";
+export { QueryClient } from "@/core/client";
