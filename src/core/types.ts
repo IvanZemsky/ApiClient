@@ -10,6 +10,7 @@ export type QueryRequestInit = Omit<RequestInit, "body"> & {
    input: RequestInfo;
    body?: Record<string, JSONifiable>;
    query?: QueryParam;
+   timeout?: number;
 };
 
 export type QueryHTTPMethod =

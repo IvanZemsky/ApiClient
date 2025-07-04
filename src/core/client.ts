@@ -80,12 +80,40 @@ export class QueryClient {
       const { input, ...options } = initOptions;
 
       const url = this.getInputString(input, options.query);
-      const preparedOptions: RequestInit = this.prepareOptions(initOptions);
+      const preparedOptions = this.prepareOptions(initOptions);
+      const timeout = this.defineQueryTimeout(options.timeout);
+
+      if (timeout) {
+         const { signal, timeoutPromise } = this.createTimeoutPromise(timeout);
+         preparedOptions.signal = signal;
+
+         const fetchPromise = fetch(url, preparedOptions);
+         return await this.timeoutRace<T>(fetchPromise, timeoutPromise);
+      }
 
       const response = await fetch(url, preparedOptions);
+      
       await this.interceptors.response.run(response);
-
       return response.json();
+   }
+
+   private async timeoutRace<T>(
+      fetchPromise: Promise<Response>,
+      timeoutPromise: Promise<any>
+   ): Promise<T> {
+      try {
+         const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+         if (response instanceof Response) {
+            await this.interceptors.response.run(response);
+            return response.json();
+         } else {
+            throw new Error("aborted-by-timeout");
+         }
+      } catch (error: any) {
+         this.handleAbortError(error);
+         throw error;
+      }
    }
 
    private prepareOptions(options: QueryRequestInit): RequestInit {
@@ -101,6 +129,32 @@ export class QueryClient {
       };
    }
 
+   private handleAbortError(error: any) {
+      if (
+         error.name === "AbortError" ||
+         error.message === "aborted-by-timeout"
+      ) {
+         error.code = "aborted-by-timeout";
+      }
+   }
+
+   private createTimeoutPromise(timeout: number): {
+      signal: AbortSignal;
+      timeoutPromise: Promise<any>;
+   } {
+      const controller = new AbortController();
+      const signal = controller.signal;
+
+      const timeoutPromise = new Promise((_, reject) => {
+         setTimeout(() => {
+            controller.abort("aborted-by-timeout");
+            reject(new Error("aborted-by-timeout"));
+         }, timeout);
+      });
+
+      return { signal, timeoutPromise };
+   }
+
    private defineQueryHeaders(
       queryHeaders: HeadersInit | undefined
    ): HeadersInit {
@@ -108,6 +162,12 @@ export class QueryClient {
          ...this.config.headers,
          ...queryHeaders,
       };
+   }
+
+   private defineQueryTimeout(
+      queryTimeout: number | undefined
+   ): number | undefined {
+      return queryTimeout ? queryTimeout : this.config.timeout;
    }
 
    private getInputString(input: RequestInfo, query?: QueryParam): string {
