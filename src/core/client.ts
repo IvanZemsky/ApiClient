@@ -1,184 +1,118 @@
-import { QueryInterceptors } from "./interceptors";
+import { QueryInterceptors } from "./interceptors"
+import { RequestPreparer } from "./request-preparer"
+import { RequestTimeout } from "./timeout"
 import type {
-   QueryClientConfig,
-   WithoutBody,
-   QueryRequestFnOptions,
-   QueryRequestInit,
-   QueryParam,
-   QueryHTTPMethod,
-} from "./types";
+  QueryClientConfig,
+  WithoutBody,
+  QueryRequestFnOptions,
+  QueryRequestInit,
+  QueryHTTPMethod,
+} from "./types"
 
 export class QueryClient {
-   private config: QueryClientConfig;
+  private config: QueryClientConfig
+  private preparer: RequestPreparer
 
-   public interceptors = {
-      request: new QueryInterceptors<QueryRequestInit>(),
-      response: new QueryInterceptors<Response>(),
-   };
+  public interceptors = {
+    request: new QueryInterceptors<QueryRequestInit>(),
+    response: new QueryInterceptors<Response>(),
+  }
 
-   constructor(config: QueryClientConfig) {
-      this.config = {
-         ...config,
-         baseURL: this.formatBaseURL(config.baseURL),
-      };
-   }
+  constructor(config: QueryClientConfig) {
+    this.config = {
+      ...config,
+      baseURL: this.formatBaseURL(config.baseURL),
+    }
 
-   async get<T>(
-      url: string,
-      options: WithoutBody<QueryRequestFnOptions>
-   ): Promise<T> {
-      return this.request<T>("GET", url, options);
-   }
+    this.preparer = new RequestPreparer(this.config)
+  }
 
-   async post<T>(url: string, options: QueryRequestFnOptions): Promise<T> {
-      return this.request<T>("POST", url, options);
-   }
+  async get<T>(url: string, options: WithoutBody<QueryRequestFnOptions>): Promise<T> {
+    return this.request<T>("GET", url, options)
+  }
 
-   async delete<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
-      return this.request<T>("DELETE", url, options);
-   }
+  async post<T>(url: string, options: QueryRequestFnOptions): Promise<T> {
+    return this.request<T>("POST", url, options)
+  }
 
-   async put<T>(url: string, options: QueryRequestFnOptions): Promise<T> {
-      return this.request<T>("PUT", url, options);
-   }
+  async delete<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
+    return this.request<T>("DELETE", url, options)
+  }
 
-   async patch<T>(url: string, options: QueryRequestFnOptions): Promise<T> {
-      return this.request<T>("PATCH", url, options);
-   }
+  async put<T>(url: string, options: QueryRequestFnOptions): Promise<T> {
+    return this.request<T>("PUT", url, options)
+  }
 
-   async head<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
-      return this.request<T>("HEAD", url, options);
-   }
+  async patch<T>(url: string, options: QueryRequestFnOptions): Promise<T> {
+    return this.request<T>("PATCH", url, options)
+  }
 
-   async options<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
-      return this.request<T>("OPTIONS", url, options);
-   }
+  async head<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
+    return this.request<T>("HEAD", url, options)
+  }
 
-   async trace<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
-      return this.request<T>("TRACE", url, options);
-   }
+  async options<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
+    return this.request<T>("OPTIONS", url, options)
+  }
 
-   async connect<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
-      return this.request<T>("CONNECT", url, options);
-   }
+  async trace<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
+    return this.request<T>("TRACE", url, options)
+  }
 
-   private async request<T>(
-      method: QueryHTTPMethod,
-      url: string,
-      options: QueryRequestFnOptions
-   ): Promise<T> {
-      return this.queryFn<T>({
-         ...options,
-         input: url,
-         method,
-      });
-   }
+  async connect<T>(url: string, options: WithoutBody<QueryRequestFnOptions>) {
+    return this.request<T>("CONNECT", url, options)
+  }
 
-   private async queryFn<T>(initOptions: QueryRequestInit): Promise<T> {
-      await this.interceptors.request.run(initOptions);
+  private async request<T>(
+    method: QueryHTTPMethod,
+    url: string,
+    options: QueryRequestFnOptions,
+  ): Promise<T> {
+    return this.queryFn<T>({
+      ...options,
+      input: url,
+      method,
+    })
+  }
 
-      const { input, ...options } = initOptions;
+  private async queryFn<T>(initOptions: QueryRequestInit): Promise<T> {
+    await this.interceptors.request.run(initOptions)
 
-      const url = this.getInputString(input, options.query);
-      const preparedOptions = this.prepareOptions(initOptions);
-      const timeout = this.defineQueryTimeout(options.timeout);
+    const [url, preparedOptions] = this.preparer.prepareRequest(initOptions)
 
-      if (timeout) {
-         const { signal, timeoutPromise } = this.createTimeoutPromise(timeout);
-         preparedOptions.signal = signal;
+    const queryTimeout = this.getQueryTimeout(initOptions.timeout)
 
-         const fetchPromise = fetch(url, preparedOptions);
-         return await this.timeoutRace<T>(fetchPromise, timeoutPromise);
-      }
+    if (queryTimeout) {
+      return await this.runWithTimeout<T>(url, preparedOptions, queryTimeout)
+    }
 
-      const response = await fetch(url, preparedOptions);
-      
-      await this.interceptors.response.run(response);
-      return response.json();
-   }
+    const response = await fetch(url, preparedOptions)
 
-   private async timeoutRace<T>(
-      fetchPromise: Promise<Response>,
-      timeoutPromise: Promise<any>
-   ): Promise<T> {
-      try {
-         const response = await Promise.race([fetchPromise, timeoutPromise]);
+    await this.interceptors.response.run(response)
+    return response.json()
+  }
 
-         if (response instanceof Response) {
-            await this.interceptors.response.run(response);
-            return response.json();
-         } else {
-            throw new Error("aborted-by-timeout");
-         }
-      } catch (error: any) {
-         this.handleAbortError(error);
-         throw error;
-      }
-   }
+  private async runWithTimeout<T>(
+    url: RequestInfo,
+    preparedOptions: RequestInit,
+    queryTimeout: number,
+  ) {
+    const timeout = new RequestTimeout({
+      responseInterceptors: this.interceptors.response,
+      timeout: queryTimeout,
+    })
 
-   private prepareOptions(options: QueryRequestInit): RequestInit {
-      const headers = this.defineQueryHeaders(options.headers);
-      const body = options.body ? JSON.stringify(options.body) : undefined;
+    return await timeout.runRequestWithTimeout<T>(url, preparedOptions)
+  }
 
-      return {
-         ...this.config,
-         ...options,
-         credentials: this.config.withCredentials ? "include" : "same-origin",
-         headers,
-         body,
-      };
-   }
+  private getQueryTimeout(queryTimeout: number | undefined): number | undefined {
+    return queryTimeout || this.config.timeout
+  }
 
-   private handleAbortError(error: any) {
-      if (
-         error.name === "AbortError" ||
-         error.message === "aborted-by-timeout"
-      ) {
-         error.code = "aborted-by-timeout";
-      }
-   }
-
-   private createTimeoutPromise(timeout: number): {
-      signal: AbortSignal;
-      timeoutPromise: Promise<any>;
-   } {
-      const controller = new AbortController();
-      const signal = controller.signal;
-
-      const timeoutPromise = new Promise((_, reject) => {
-         setTimeout(() => {
-            controller.abort("aborted-by-timeout");
-            reject(new Error("aborted-by-timeout"));
-         }, timeout);
-      });
-
-      return { signal, timeoutPromise };
-   }
-
-   private defineQueryHeaders(
-      queryHeaders: HeadersInit | undefined
-   ): HeadersInit {
-      return {
-         ...this.config.headers,
-         ...queryHeaders,
-      };
-   }
-
-   private defineQueryTimeout(
-      queryTimeout: number | undefined
-   ): number | undefined {
-      return queryTimeout ? queryTimeout : this.config.timeout;
-   }
-
-   private getInputString(input: RequestInfo, query?: QueryParam): string {
-      const searchParams = new URLSearchParams(query);
-      return `${this.config.baseURL}${input}?${searchParams}`;
-   }
-
-   private formatBaseURL(baseURL?: string): string {
-      if (!baseURL) {
-         return "";
-      }
-      return baseURL.endsWith("/") ? baseURL : `${baseURL}/`;
-   }
+  private formatBaseURL(baseURL?: string): string {
+    if (!baseURL) {
+      return ""
+    }
+    return baseURL.endsWith("/") ? baseURL : `${baseURL}/`
+  }
 }
