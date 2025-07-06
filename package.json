@@ -1,8 +1,44 @@
 {
-  "name": "s-queries",
-  "private": true,
-  "version": "0.0.0",
+  "name": "curry-query",
+  "description": "Simple axios-like HTTP client for JavaScript",
+  "private": false,
+  "version": "1.0.1",
+  "author": {
+    "name": "Ivan Kopytin",
+    "nickname": "IvanZemsky",
+    "email": "i.ivanzemsky2005@gmail.com",
+    "github": "https://github.com/IvanZemsky"
+  },
+  "keywords": [
+    "axios",
+    "http",
+    "fetch",
+    "request",
+    "client"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IvanZemsky/ApiClient.git"
+  },
+  "bugs": {
+    "url": "https://github.com/IvanZemsky/ApiClient/issues"
+  },
+  "homepage": "https://github.com/IvanZemsky/ApiClient",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/curry-client.umd.js",
+  "module": "./dist/curry-client.es.js",
+  "typings": "./dist/index.d.ts",
   "type": "module",
+  "exports": {
+      ".": {
+         "types": "./dist/index.d.ts",
+         "import": "./dist/curry-clienti.es.js",
+         "require": "./dist/curry-client.umd.js"
+      }
+   },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
