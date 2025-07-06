@@ -79,30 +79,26 @@ export class QueryClient {
     await this.interceptors.request.run(initOptions)
 
     const [url, preparedOptions] = this.preparer.prepareRequest(initOptions)
-
     const queryTimeout = this.getQueryTimeout(initOptions.timeout)
 
+    let response: Response
     if (queryTimeout) {
-      return await this.runWithTimeout<T>(url, preparedOptions, queryTimeout)
+      response = await this.runWithTimeout(url, preparedOptions, queryTimeout)
+    } else {
+      response = await fetch(url, preparedOptions)
     }
-
-    const response = await fetch(url, preparedOptions)
 
     await this.interceptors.response.run(response)
     return response.json()
   }
 
-  private async runWithTimeout<T>(
+  private async runWithTimeout(
     url: RequestInfo,
     preparedOptions: RequestInit,
     queryTimeout: number,
   ) {
-    const timeout = new RequestTimeout({
-      responseInterceptors: this.interceptors.response,
-      timeout: queryTimeout,
-    })
-
-    return await timeout.runRequestWithTimeout<T>(url, preparedOptions)
+    const timeout = new RequestTimeout(queryTimeout)
+    return await timeout.runRequestWithTimeout(url, preparedOptions)
   }
 
   private getQueryTimeout(queryTimeout: number | undefined): number | undefined {

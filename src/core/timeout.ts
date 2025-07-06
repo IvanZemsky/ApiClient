@@ -1,36 +1,27 @@
 import { QueryError } from "./error"
-import type { QueryInterceptors } from "./interceptors"
-
-type RequestTimeoutConfig = {
-  timeout: number
-  responseInterceptors: QueryInterceptors<Response>
-}
 
 export class RequestTimeout {
-  private responseInterceptors: QueryInterceptors<Response>
   private timeout: number
 
-  constructor(config: RequestTimeoutConfig) {
-    this.responseInterceptors = config.responseInterceptors
-    this.timeout = config.timeout
+  constructor(timeout: number) {
+    this.timeout = timeout
   }
 
-  async runRequestWithTimeout<T>(url: RequestInfo, options: RequestInit): Promise<T> {
+  async runRequestWithTimeout(url: RequestInfo, options: RequestInit): Promise<Response> {
     const { timeoutId, signal, timeoutPromise } = this.createTimeoutPromise()
-    const fetchPromise = this.createFetchTimeout<T>(url, { ...options, signal }, timeoutId)
+    const fetchPromise = this.createFetchTimeout(url, { ...options, signal }, timeoutId)
 
-    return await this.race<T>(fetchPromise, timeoutPromise)
+    return this.race(fetchPromise, timeoutPromise)
   }
 
-  private async createFetchTimeout<T>(
+  private async createFetchTimeout(
     url: RequestInfo,
     options: RequestInit,
     timeoutId: NodeJS.Timeout | undefined,
-  ): Promise<T> {
+  ): Promise<Response> {
     return fetch(url, options).then(async (response) => {
       clearTimeout(timeoutId)
-      await this.responseInterceptors.run(response)
-      return response.json() as T
+      return response
     })
   }
 
@@ -55,7 +46,10 @@ export class RequestTimeout {
     return { timeoutId, signal, timeoutPromise }
   }
 
-  private async race<T>(fetchPromise: Promise<T>, timeoutPromise: Promise<unknown>): Promise<T> {
-    return (await Promise.race([fetchPromise, timeoutPromise])) as Promise<T>
+  private async race(
+    fetchPromise: Promise<Response>,
+    timeoutPromise: Promise<unknown>,
+  ): Promise<Response> {
+    return (await Promise.race([fetchPromise, timeoutPromise])) as Promise<Response>
   }
 }
