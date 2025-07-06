@@ -22,7 +22,7 @@ client.interceptors.request.use(async (request) => {
 async function fetchTodo(todoId: number) {
   return await client.get(`todos/${todoId}`, {
     query: { include: "profile" },
-    timeout: 500,
+    timeout: 3000,
   })
 }
 
@@ -45,19 +45,19 @@ async function main() {
   try {
     await fetchTodo(1)
   } catch (error) {
-    console.error("Ошибка при выполнении fetchTodo:", error)
+    console.error("fetchTodo", error)
   }
 
   try {
     await fakePost()
   } catch (error) {
-    console.error("Ошибка при выполнении fakePost:", error)
+    console.error("fakePost", error)
   }
 
   try {
     await fetchTodo2(2)
   } catch (error) {
-    console.error("Ошибка при выполнении fetchTodo2:", error)
+    console.error("fetchTodo2", error)
   }
 }
 

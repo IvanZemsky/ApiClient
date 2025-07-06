@@ -1,3 +1,4 @@
+import { QueryError } from "./error"
 import type { QueryInterceptors } from "./interceptors"
 
 type RequestTimeoutConfig = {
@@ -15,47 +16,47 @@ export class RequestTimeout {
   }
 
   createPromise(): {
-    signal: AbortSignal
+    timeoutId: NodeJS.Timeout | undefined
     timeoutPromise: Promise<unknown>
+    signal: AbortSignal
   } {
     const controller = new AbortController()
     const signal = controller.signal
 
+    let timeoutId: NodeJS.Timeout | undefined
+
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        controller.abort("aborted-by-timeout")
-        reject(new Error("aborted-by-timeout"))
+      timeoutId = setTimeout(() => {
+        const error = new QueryError(QueryError.ECONNABORTED, "Request timed out")
+        controller.abort(error)
+        reject(error)
       }, this.timeout)
     })
 
-    return { signal, timeoutPromise }
+    return { timeoutId, signal, timeoutPromise }
   }
 
   async runRequestWithTimeout<T>(url: RequestInfo, options: RequestInit): Promise<T> {
     const { signal, timeoutPromise } = this.createPromise()
     const fetchPromise = fetch(url, { ...options, signal })
+    
     return await this.race<T>(fetchPromise, timeoutPromise)
   }
 
-  private async race<T>(fetchPromise: Promise<Response>, timeoutPromise: Promise<any>): Promise<T> {
-    try {
-      const response = await Promise.race([fetchPromise, timeoutPromise])
+  private async race<T>(
+    fetchPromise: Promise<Response>,
+    timeoutPromise: Promise<any>,
+    timeoutId?: NodeJS.Timeout,
+  ): Promise<T> {
+    const response = await Promise.race<[Response, unknown]>([fetchPromise, timeoutPromise])
 
-      if (response instanceof Response) {
-        await this.responseInterceptors.run(response)
-        return response.json()
-      } else {
-        throw new Error("aborted-by-timeout")
-      }
-    } catch (error: any) {
-      this.handleAbortError(error)
-      throw error
-    }
-  }
-
-  private handleAbortError(error: any) {
-    if (error.name === "AbortError" || error.message === "aborted-by-timeout") {
-      error.code = "aborted-by-timeout"
+    if (response instanceof Response) {
+      clearTimeout(timeoutId)
+      await this.responseInterceptors.run(response)
+      return response.json()
+    } else {
+      // REFACTOR
+      throw new QueryError(QueryError.ECONNABORTED, "Request timed out")
     }
   }
 }
