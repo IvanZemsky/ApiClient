@@ -22,7 +22,7 @@ client.interceptors.request.use(async (request) => {
 async function fetchTodo(todoId: number) {
   return await client.get(`todos/${todoId}`, {
     query: { include: "profile" },
-    timeout: 3000,
+    timeout: 500,
   })
 }
 
